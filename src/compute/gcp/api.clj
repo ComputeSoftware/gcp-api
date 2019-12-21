@@ -8,8 +8,8 @@
     [compute.gcp.impl.http :as http-impl]))
 
 (defn client
-  [{:keys [api credentials-provider]}]
-  (let [descriptor (descriptors/load-descriptor api)]
+  [{:keys [api version credentials-provider]}]
+  (let [descriptor (descriptors/load-descriptor api version)]
     {::api-descriptor       descriptor
      ::credentials-provider credentials-provider}))
 
@@ -47,8 +47,9 @@
 
 (defn doc-data
   [client op]
-  (-> (get-in client [::api-descriptor :compute.api-descriptor/op->spec op])
-      (select-keys [:description :parameters :responses])))
+  (let [op-descriptor (descriptors/get-op-descriptor (::api-descriptor client) op)]
+    (-> op-descriptor
+        (select-keys [:description :parameters :responses]))))
 
 
 (defn ops

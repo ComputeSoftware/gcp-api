@@ -1,0 +1,56 @@
+version: 2.1
+
+defaults: &defaults
+  docker:
+    - image: circleci/clojure:tools-deps-1.10.1.483
+
+jobs:
+  test:
+    <<: *defaults
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - project-{{ checksum "deps.edn" }}
+            - project
+
+      - run: clojure -A:test:test-runner
+
+      - save_cache:
+          paths:
+            - ~/.m2
+            - ~/.gitlibs
+            - ./.cpcache
+          key: project-{{ checksum "deps.edn" }}
+
+  update-descriptor-files:
+    <<: *defaults
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - project-{{ checksum "deps.edn" }}
+            - project
+      - run:
+          name: Update & push descriptor files
+          command: ./bin/update-descriptors.sh
+
+workflows:
+  version: 2
+  ci-workflow:
+    jobs:
+      - test
+
+  update-descriptors:
+    jobs:
+      - update-descriptor-files
+    triggers:
+      - schedule:
+          # Run every day at 12pm
+          cron: "0 12 * * *"
+          filters:
+            branches:
+              only:
+                - master

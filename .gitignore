@@ -2,4 +2,4 @@
 .cpcache
 .nrepl-port
 *.iml
-descriptors
+gcp-api-descriptors

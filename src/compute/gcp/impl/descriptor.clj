@@ -46,8 +46,11 @@
 
 
 (defn api-descriptor-resource-path
-  [api]
-  (format "%s/%s.edn" api-descriptor-resource-path-base-directory (name api)))
+  [api api-version]
+  (format "%s/%s/%s/api-descriptor.edn"
+          api-descriptor-resource-path-base-directory
+          (name api)
+          api-version))
 
 
 (comment
@@ -57,12 +60,9 @@
   )
 
 
-
-
-
 (defn load-descriptor
-  [api]
-  (edn/read-string (slurp (io/resource (api-descriptor-resource-path api)))))
+  [api api-version]
+  (edn/read-string (slurp (io/resource (api-descriptor-resource-path api api-version)))))
 
 
 (defn parse-ref

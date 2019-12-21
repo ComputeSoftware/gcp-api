@@ -5,4 +5,7 @@
            aleph                                           {:mvn/version "0.4.6"}
            com.google.auth/google-auth-library-oauth2-http {:mvn/version "0.19.0"}}
  :aliases {:test {:extra-paths ["test"]}
-           :dev  {:extra-paths ["resources" "env"]}}}
+           :dev  {:extra-paths ["resources" "env"]
+                  :extra-deps  {compute.gcp-api-descriptors/compute {:git/url   "git@github.com:ComputeSoftware/gcp-api-descriptors.git"
+                                                                     :sha       "1700d07bcc51bc4a2a01c3f0169916737d2aede1"
+                                                                     :deps/root "compute"}}}}}

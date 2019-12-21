@@ -1,0 +1,8 @@
+{:paths   ["src"]
+ :deps    {com.cognitect/anomalies                         {:mvn/version "0.1.12"}
+           clj-commons/clj-yaml                            {:mvn/version "0.7.0"}
+           org.clojure/data.json                           {:mvn/version "0.2.7"}
+           aleph                                           {:mvn/version "0.4.6"}
+           com.google.auth/google-auth-library-oauth2-http {:mvn/version "0.19.0"}}
+ :aliases {:test {:extra-paths ["test"]}
+           :dev  {:extra-paths ["resources" "env"]}}}

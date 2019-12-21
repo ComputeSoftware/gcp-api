@@ -64,6 +64,6 @@
       (-> (deferred/deferred)
           (deferred/success! req-map))
       (deferred/chain
-        (http/request req-map)
+        (http/request (assoc req-map :throw-exceptions false))
         (fn [http-response]
           (http-impl/normalize-response http-response))))))

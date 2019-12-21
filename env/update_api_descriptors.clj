@@ -46,17 +46,17 @@
   (spit path content))
 
 (defn get-write-actions
-  [api-infos]
+  [descriptors-dir api-infos]
   (map (fn [{:keys [name version swagger-url] :as api-info}]
          (let [swagger @(get-json swagger-url)]
            (if (::anom/category swagger)
              (assoc swagger :api-info api-info)
-             (let [base-api-dir (io/file "descriptors" name)]
+             (let [base-api-dir (io/file descriptors-dir name)]
                {:descriptor
                 {:path    (io/file base-api-dir (descriptor/api-descriptor-resource-path name))
                  :content (descriptor/swagger->descriptor swagger)}
                 :deps-edn
-                {:path (io/file base-api-dir "deps.edn")
+                {:path    (io/file base-api-dir "deps.edn")
                  :content {:paths ["."]}}}))))
        api-infos))
 
@@ -72,5 +72,5 @@
         (spit-with-dirs (:path deps-edn) (:content deps-edn))))))
 
 (comment
-  (write! (get-write-actions api-infos-to-publish))
+  (write! (get-write-actions "../gcp-api-descriptors" api-infos-to-publish))
   )

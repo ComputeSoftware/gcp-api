@@ -66,24 +66,25 @@
 
 
 (defn parse-ref
-  [ref-val]
-  (let [[_ type location] (str/split ref-val #"\/" 3)]
-    [(case type
-       "definitions" :compute.api-descriptor/definitions
-       "parameters" :compute.api-descriptor/parameters)
-     (keyword location)]))
+  ([ref-val as-string?]
+   (let [[_ type location] (str/split ref-val #"\/" 3)]
+     [(case type
+        "definitions" :compute.api-descriptor/definitions
+        "parameters" :compute.api-descriptor/parameters)
+      (if as-string? location (keyword location))])))
 
 
 (defn resolve-ref
   [api-descriptor ref-path]
-  (get-in api-descriptor (parse-ref ref-path)))
+  (or (get-in api-descriptor (parse-ref ref-path false))
+      (get-in api-descriptor (parse-ref ref-path true))))
 
 
 (defn resolve-all-refs
   [form api-descriptor]
   (walk/prewalk
     (fn [form]
-      (if-let [ref-val (get form "$ref")]
+      (if-let [ref-val (get form :$ref)]
         (resolve-ref api-descriptor ref-val)
         form))
     form))

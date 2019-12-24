@@ -2,8 +2,10 @@
   (:require
     [clojure.string :as str]
     [clojure.java.io :as io]
-    [cognitect.anomalies :as anom]
     [clojure.data.json :as json]
+    [cognitect.anomalies :as anom]
+    [aleph.http :as http]
+    [manifold.deferred :as deferred]
     [compute.gcp.impl.descriptor :as descriptors]
     [compute.gcp.credentials :as creds]
     [compute.gcp.impl.util :as util]))
@@ -114,17 +116,34 @@
 (defn op-request-map
   [client op-map]
   (if-let [op-descriptor (get-in client [:compute.gcp.api/api-descriptor :compute.api-descriptor/op->spec (:op op-map)])]
-    (let [request (build-request-map
-                    (get-in client [:compute.gcp.api/api-descriptor :compute.api-descriptor/endpoint])
-                    op-descriptor
-                    (:request op-map))
-          creds-map (creds/fetch (:compute.gcp.api/credentials-provider client))]
-      (if (::anom/category creds-map)
-        creds-map
-        (with-auth request (::creds/access-token creds-map))))
+    (let [request (try
+                    (build-request-map
+                      (get-in client [:compute.gcp.api/api-descriptor :compute.api-descriptor/endpoint])
+                      op-descriptor
+                      (:request op-map))
+                    (catch Exception ex
+                      {::anom/category ::anom/fault
+                       ::anom/message  (str "Exception while creating the HTTP request map. " (.getMessage ex))
+                       :ex             ex
+                       :op-map         op-map}))]
+      (if (::anom/category request)
+        request
+        (let [creds-map (creds/fetch (:compute.gcp.api/credentials-provider client))]
+          (if (::anom/category creds-map)
+            creds-map
+            (with-auth request (::creds/access-token creds-map))))))
     {::anom/category ::anom/incorrect
      ::anom/message  (str "Unknown operation " (:op op-map) ".")
      :op             (:op op-map)}))
+
+(defn url-request-map
+  [client url]
+  (let [creds-map (creds/fetch (:compute.gcp.api/credentials-provider client))
+        request {:method :get
+                 :url    url}]
+    (if (::anom/category creds-map)
+      creds-map
+      (with-auth request (::creds/access-token creds-map)))))
 
 (defn http-status->category
   "Returns the anomaly category given a HTTP status. `::anomalies/fault` is returned
@@ -167,3 +186,13 @@
         (merge {::anom/category (http-status->category status)}
                parsed-body))
       (select-keys response [:status :headers]))))
+
+(defn send-request!
+  [request]
+  (if (::anom/category request)
+    (-> (deferred/deferred)
+        (deferred/success! request))
+    (deferred/chain
+      (http/request (assoc request :throw-exceptions false))
+      (fn [http-response]
+        (normalize-response http-response)))))

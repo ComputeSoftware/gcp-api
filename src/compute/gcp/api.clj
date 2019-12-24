@@ -60,10 +60,12 @@
 (defn invoke
   [client op-map]
   (let [req-map (http-impl/op-request-map client op-map)]
-    (if (::anom/category req-map)
-      (-> (deferred/deferred)
-          (deferred/success! req-map))
-      (deferred/chain
-        (http/request (assoc req-map :throw-exceptions false))
-        (fn [http-response]
-          (http-impl/normalize-response http-response))))))
+    (http-impl/send-request! req-map)))
+
+
+(defn get-url
+  "GCP APIs often return resource URLs. This function simply executes a GET request
+  on that url."
+  [client url]
+  (let [req-map (http-impl/op-request-map client url)]
+    (http-impl/send-request! req-map)))

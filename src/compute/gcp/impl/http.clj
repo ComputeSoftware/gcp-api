@@ -184,14 +184,16 @@
       (if (= status-level 2)
         parsed-body
         (merge {::anom/category (http-status->category status)}
-               parsed-body))
+               (if (map? parsed-body)
+                 parsed-body
+                 {:response parsed-body})))
       (select-keys response [:status :headers]))))
 
 (defn send-request!
   [request]
   (if (::anom/category request)
-    (-> (deferred/deferred)
-        (deferred/success! request))
+    (doto (deferred/deferred)
+      (deferred/success! request))
     (deferred/chain
       (http/request (assoc request :throw-exceptions false))
       (fn [http-response]

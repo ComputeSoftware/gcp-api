@@ -67,5 +67,5 @@
   "GCP APIs often return resource URLs. This function simply executes a GET request
   on that url."
   [client url]
-  (let [req-map (http-impl/op-request-map client url)]
+  (let [req-map (http-impl/url-request-map client url)]
     (http-impl/send-request! req-map)))

@@ -34,6 +34,11 @@ jobs:
             - project-{{ checksum "deps.edn" }}
             - project
       - run:
+          name: Configure git
+          command: |
+            git config --global user.email "compute-ci@computesoftware.com"
+            git config --global user.name "Compute CI"
+      - run:
           name: Update & push descriptor files
           command: ./bin/update-descriptors.sh
 

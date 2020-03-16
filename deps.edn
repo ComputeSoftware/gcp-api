@@ -9,6 +9,6 @@
            :dev         {:extra-paths ["resources" "env"]
                          :extra-deps  {com.climate/claypoole               {:mvn/version "1.1.4"}
                                        compute.gcp-api-descriptors/compute {#_#_:git/url "git@github.com:ComputeSoftware/gcp-api-descriptors.git"
-                                                                            :local/root "../gcp-api-descriptors/compute"
+                                                                            :local/root "gcp-api-descriptors/compute"
                                                                             :sha        "1700d07bcc51bc4a2a01c3f0169916737d2aede1"
                                                                             :deps/root  "compute"}}}}}

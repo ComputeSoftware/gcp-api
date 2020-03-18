@@ -4,39 +4,44 @@
     [clojure.java.io :as io]
     [clojure.data.json :as json]
     [cognitect.anomalies :as anom]
-    [aleph.http :as http]
+    [java-http-clj.core :as http]
     [com.climate.claypoole :as pool]
-    [manifold.deferred :as deferred]
     [compute.gcp.impl.util :as util]
-    [compute.gcp.impl.http :as http-impl]
+    [compute.gcp.impl.response :as response]
     [compute.gcp.impl.descriptor :as descriptor]))
 
-(defn swagger-url-for-gcp-api
+(defn openapi-url-for-gcp-api
   [gcp-api version]
-  (format "https://api.apis.guru/v2/specs/googleapis.com/%s/%s/swagger.json"
+  (format "https://api.apis.guru/v2/specs/googleapis.com/%s/%s/openapi.json"
           gcp-api
           version))
 
 (defn get-json
   [url]
-  (deferred/chain
-    (http/get url {:throw-exceptions false})
-    (fn [resp]
-      (if (= 200 (:status resp))
-        (json/read (io/reader (:body resp)) :key-fn util/json-key)
-        {::anom/category (http-impl/http-status->category (:status resp))
-         :resp           resp}))))
+  (let [resp (http/get url {:timeout 5000} {:as :input-stream})]
+    (if (= 200 (:status resp))
+      (json/read (io/reader (:body resp)) :key-fn util/json-key)
+      {::anom/category (response/http-status->category (:status resp))
+       :resp           resp})))
 
 (defn fetch-gcp-apis
   []
-  @(get-json "https://www.googleapis.com/discovery/v1/apis"))
+  (get-json "https://www.googleapis.com/discovery/v1/apis"))
+
+(defn fetch-api-openapi
+  [gcp-api version]
+  (get-json (openapi-url-for-gcp-api gcp-api version)))
+
+(comment
+  (def compute-swag (fetch-api-openapi "compute" "v1"))
+  )
 
 (defn api-infos-to-publish
   [gcp-apis]
   (map (fn [{:keys [name version]}]
          {:name        name
           :version     version
-          :swagger-url (swagger-url-for-gcp-api name version)})
+          :openapi-url (openapi-url-for-gcp-api name version)})
        (:items gcp-apis)))
 
 (defn spit-with-dirs
@@ -44,18 +49,37 @@
   (.mkdirs (.getParentFile (io/file path)))
   (spit path content))
 
+(defn get-all-specs
+  [api-infos]
+  (pool/upmap
+    (pool/ncpus)
+    (fn [{:keys [name version openapi-url] :as api-info}]
+      (let [swagger (get-json openapi-url)]
+        (assoc api-info :openapi-spec swagger)))
+    api-infos))
+
+(comment
+  (def all-specs (get-all-specs (api-infos-to-publish (fetch-gcp-apis))))
+  ;; specs with more than one server endpoint
+  (->> get-all-specs
+       (map :openapi-spec all-specs)
+       (filter (complement ::anom/category))
+       (filter #(> (count (:servers %)) 1))
+       (count))
+  )
+
 (defn get-write-actions
   [descriptors-dir api-infos]
   (pool/upmap
     (pool/ncpus)
-    (fn [{:keys [name version swagger-url] :as api-info}]
-      (let [swagger @(get-json swagger-url)]
-        (if (::anom/category swagger)
-          (assoc swagger :api-info api-info)
+    (fn [{:keys [name version openapi-url] :as api-info}]
+      (let [openapi-spec (get-json openapi-url)]
+        (if (::anom/category openapi-spec)
+          (assoc openapi-spec :api-info api-info)
           (let [base-api-dir (io/file descriptors-dir name)]
             {:descriptor
              {:path    (io/file base-api-dir (descriptor/api-descriptor-resource-path name version))
-              :content (descriptor/swagger->descriptor swagger)}
+              :content (descriptor/openapi->descriptor openapi-spec)}
              :deps-edn
              {:path    (io/file base-api-dir "deps.edn")
               :content {:paths ["."]}}}))))
@@ -82,7 +106,7 @@
 
 (comment
   (def api-infos (api-infos-to-publish (fetch-gcp-apis)))
-  (def write-actions (get-write-actions "../gcp-api-descriptors" api-infos))
+  (def write-actions (get-write-actions "gcp-api-descriptors" api-infos))
   (write! write-actions)
   )
 

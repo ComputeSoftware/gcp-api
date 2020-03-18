@@ -34,4 +34,4 @@
   (is (= {:headers {"Authorization" "Bearer the-token"}} (request/with-auth {} "the-token"))))
 
 ;; TODO:
-(deftest with-request-parameters-unit-test)
+;(deftest with-request-parameters-unit-test)

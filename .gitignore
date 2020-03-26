@@ -4,3 +4,4 @@
 *.iml
 gcp-api-descriptors
 creds.json
+lib.jar

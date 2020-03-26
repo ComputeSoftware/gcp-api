@@ -15,4 +15,6 @@
                                        compute.gcp-api-descriptors/compute {#_#_:git/url "git@github.com:ComputeSoftware/gcp-api-descriptors.git"
                                                                             :local/root "gcp-api-descriptors/compute"
                                                                             :sha        "1700d07bcc51bc4a2a01c3f0169916737d2aede1"
-                                                                            :deps/root  "compute"}}}}}
+                                                                            :deps/root  "compute"}}}
+           :jar         {:extra-deps {seancorfield/depstar {:mvn/version "0.5.2"}}
+                         :main-opts  ["-m" "hf.depstar.jar" "lib.jar"]}}}

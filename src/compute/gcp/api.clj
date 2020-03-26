@@ -1,16 +1,24 @@
 (ns compute.gcp.api
   (:require
     [clojure.string :as str]
-    [cognitect.anomalies :as anom]
-    [aleph.http :as http]
-    [manifold.deferred :as deferred]
+    [clojure.core.async :as async]
     [compute.gcp.impl.descriptor :as descriptors]
-    [compute.gcp.impl.http :as http-impl]))
+    [compute.gcp.impl.client :as client-impl]
+    [compute.gcp.async.api :as async.api]))
+
+(def ^:private *default-http-client
+  (delay
+    ((requiring-resolve 'compute.gcp.java-http-clj/default-http-client))))
+
+(defn default-http-client
+  []
+  @*default-http-client)
 
 (defn client
-  [{:keys [api version credentials-provider]}]
+  [{:keys [api version http-client credentials-provider]}]
   (let [descriptor (descriptors/load-descriptor api version)]
-    {::api-descriptor       descriptor
+    {::http-client          (or http-client (default-http-client))
+     ::api-descriptor       descriptor
      ::credentials-provider credentials-provider}))
 
 
@@ -59,13 +67,11 @@
 
 (defn invoke
   [client op-map]
-  (let [req-map (http-impl/op-request-map client op-map)]
-    (http-impl/send-request! req-map)))
+  (async/<!! (async.api/invoke client op-map)))
 
 
 (defn get-url
   "GCP APIs often return resource URLs. This function simply executes a GET request
   on that url."
   [client url]
-  (let [req-map (http-impl/url-request-map client url)]
-    (http-impl/send-request! req-map)))
+  (async/<!! (async.api/get-url client url)))

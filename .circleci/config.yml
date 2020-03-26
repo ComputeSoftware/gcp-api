@@ -47,6 +47,7 @@ workflows:
   ci-workflow:
     jobs:
       - test
+      - update-descriptor-files
 
   update-descriptors:
     jobs:

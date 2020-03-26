@@ -3,42 +3,72 @@
     [clojure.string :as str]
     [clojure.edn :as edn]
     [clojure.walk :as walk]
+    [clojure.set :as sets]
     [clojure.java.io :as io]
     [clojure.data.json :as json]
-    [compute.gcp.impl.util :as util]))
+    [clojure.spec.alpha :as s]
+    [compute.gcp.impl.util :as util]
+    [compute.gcp.swagger :as swagger]))
 
+(def http-methods
+  #{:get :head :post :put :delete :connect :options :trace :patch})
+
+(s/def ::api keyword?)
+(s/def ::version string?)
+(s/def ::http-method http-methods)
+(s/def ::http-path ::swagger/path-endpoint)
+
+(s/def ::url string?)
+
+(s/def :compute.api-descriptor/endpoint
+  (s/keys :req-un [::url]))
+
+(s/def ::op-spec
+  (s/keys :req [::http-method]
+          :req-un [::swagger/responses
+                   ::swagger/operationId]
+          :opt-un [::swagger/description
+                   ::swagger/parameters]))
+
+(s/def :compute.api-descriptor/op->spec
+  (s/map-of ::swagger/operationId ::op-spec))
+
+(s/def :compute.api-descriptor/parameters ::swagger/parameters)
+(s/def :compute.api-descriptor/definitions ::swagger/definitions)
+
+(s/def ::descriptor
+  (s/keys :req [:compute.api-descriptor/endpoint
+                :compute.api-descriptor/op->spec
+                :compute.api-descriptor/resolve]))
 
 (defn read-swagger-file
   [path]
   (json/read-str (slurp path) :key-fn util/json-key))
 
 
-(def http-methods
-  #{:get :head :post :put :delete :connect :options :trace :patch})
+(defn openapi-op-lookup
+  [paths]
+  (into {}
+        (for [[path path-item] paths
+              [method operation] path-item
+              :when (contains? http-methods method)]
+          [(:operationId operation)
+           (-> (select-keys operation [:operationId
+                                       :description
+                                       :parameters
+                                       :requestBody])
+               (assoc ::http-method method
+                      ::http-path path))])))
 
-(defn swagger->descriptor
-  [swagger2-spec]
-  (let [op->spec (into {}
-                       (for [[path method->spec] (:paths swagger2-spec)
-                             :let [path-params (:parameters method->spec)]
-                             [method spec] method->spec
-                             :when (contains? http-methods method)]
-                         [(:operationId spec)
-                          (cond-> (select-keys spec [:description
-                                                     :responses
-                                                     :parameters
-                                                     :operationId])
-                            true (assoc ::http-method method
-                                        ::http-path path)
-                            path-params
-                            (assoc ::path-parameters path-params))]))
-        endpoint-map {:schemes   (:schemes swagger2-spec)
-                      :host      (:host swagger2-spec)
-                      :base-path (:basePath swagger2-spec)}]
-    {:compute.api-descriptor/endpoint    endpoint-map
-     :compute.api-descriptor/op->spec    op->spec
-     :compute.api-descriptor/parameters  (:parameters swagger2-spec)
-     :compute.api-descriptor/definitions (:definitions swagger2-spec)}))
+(defn openapi->descriptor
+  [openapi-spec]
+  (let [{:keys [paths servers]} openapi-spec
+        op->spec (openapi-op-lookup paths)
+        _ (when (not= 1 (count servers)) (throw (ex-info "Unsupported :servers count" {:servers servers})))
+        endpoint-map {::url (:url (first servers))}]
+    {:compute.api-descriptor/endpoint endpoint-map
+     :compute.api-descriptor/op->spec op->spec
+     :compute.api-descriptor/resolve  {:components (:components openapi-spec)}}))
 
 
 (def api-descriptor-resource-path-base-directory
@@ -56,38 +86,38 @@
 (comment
   (.mkdirs (io/file "resources" api-descriptor-resource-path-base-directory))
   (spit (str "resources/" (api-descriptor-resource-path :compute))
-        (swagger->descriptor (read-swagger-file "resources/gcp-compute-swagger.json")))
+        (openapi->descriptor (read-swagger-file "resources/gcp-compute-swagger.json")))
   )
+
+
+(defn parse-ref
+  [ref-val]
+  (let [[_ & path] (str/split ref-val #"\/")]
+    (map keyword path)))
+
+
+(defn resolve-ref
+  [resolve-map ref-path]
+  (get-in resolve-map (parse-ref ref-path)))
+
+
+(defn resolve-all-refs
+  [api-descriptor]
+  (walk/prewalk
+    (fn [form]
+      (if-let [ref-val (get form :$ref)]
+        (resolve-ref (:compute.api-descriptor/resolve api-descriptor) ref-val)
+        form))
+    api-descriptor))
 
 
 (defn load-descriptor
   [api api-version]
-  (edn/read-string (slurp (io/resource (api-descriptor-resource-path api api-version)))))
-
-
-(defn parse-ref
-  ([ref-val as-string?]
-   (let [[_ type location] (str/split ref-val #"\/" 3)]
-     [(case type
-        "definitions" :compute.api-descriptor/definitions
-        "parameters" :compute.api-descriptor/parameters)
-      (if as-string? location (keyword location))])))
-
-
-(defn resolve-ref
-  [api-descriptor ref-path]
-  (or (get-in api-descriptor (parse-ref ref-path false))
-      (get-in api-descriptor (parse-ref ref-path true))))
-
-
-(defn resolve-all-refs
-  [form api-descriptor]
-  (walk/prewalk
-    (fn [form]
-      (if-let [ref-val (get form :$ref)]
-        (resolve-ref api-descriptor ref-val)
-        form))
-    form))
+  (with-open [rdr (-> (api-descriptor-resource-path api api-version)
+                      (io/resource)
+                      (io/reader))
+              push-rdr (java.io.PushbackReader. rdr)]
+    (resolve-all-refs (edn/read push-rdr))))
 
 
 (defn get-op-descriptor

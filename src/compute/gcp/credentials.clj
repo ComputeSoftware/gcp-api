@@ -7,32 +7,37 @@
            (java.util List)))
 
 (defprotocol CredentialsProvider
-  (fetch [_] ""))
+  (fetch [_]))
 
-;; https://github.com/googleapis/google-auth-library-java#google-auth-library-oauth2-http
-(defn default-creds
+(defn google-credentials-as-provider
+  [^GoogleCredentials google-creds-obj]
+  (reify CredentialsProvider
+    (fetch [_]
+      (let [refresh-result (try
+                             (.refreshIfExpired google-creds-obj)
+                             (catch Exception ex
+                               {::anom/category ::anom/fault
+                                ::anom/message  (str "Failed to refresh GCP token. "
+                                                     (.getMessage ex))
+                                :ex             ex}))]
+        (if (::anom/category refresh-result)
+          refresh-result
+          {::access-token (.getTokenValue ^AccessToken (.getAccessToken google-creds-obj))})))))
+
+(defn get-default
   []
-  (GoogleCredentials/getApplicationDefault))
+  (google-credentials-as-provider
+    ;; https://github.com/googleapis/google-auth-library-java#google-auth-library-oauth2-http
+    (GoogleCredentials/getApplicationDefault)))
 
-(defn service-account-creds
+(defn from-service-account
   [{:keys [file creds scopes]}]
-  (let [creds (-> (GoogleCredentials/fromStream
-                    (io/input-stream
-                      (cond
-                        file
-                        (io/file file)
-                        creds
-                        (.getBytes (json/write-str creds)))))
-                  (.createScoped ^List scopes))]
-    (reify CredentialsProvider
-      (fetch [_]
-        (let [refresh-result (try
-                               (.refreshIfExpired creds)
-                               (catch Exception ex
-                                 {::anom/category ::anom/fault
-                                  ::anom/message  (str "Failed to refresh GCP token. "
-                                                       (.getMessage ex))
-                                  :ex             ex}))]
-          (if (::anom/category refresh-result)
-            refresh-result
-            {::access-token (.getTokenValue ^AccessToken (.getAccessToken creds))}))))))
+  (let [is (io/input-stream
+             (cond
+               file
+               (io/file file)
+               creds
+               (.getBytes (json/write-str creds))))]
+    (-> (GoogleCredentials/fromStream is)
+        (.createScoped ^List scopes)
+        (google-credentials-as-provider))))

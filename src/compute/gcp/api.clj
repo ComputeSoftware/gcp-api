@@ -4,6 +4,7 @@
     [clojure.core.async :as async]
     [compute.gcp.impl.descriptor :as descriptors]
     [compute.gcp.impl.client :as client-impl]
+    [compute.gcp.credentials :as creds]
     [compute.gcp.async.api :as async.api]))
 
 (def ^:private *default-http-client
@@ -16,7 +17,8 @@
 
 (defn client
   [{:keys [api version http-client credentials-provider]}]
-  (let [descriptor (descriptors/load-descriptor api version)]
+  (let [descriptor (descriptors/load-descriptor api version)
+        credentials-provider (or credentials-provider (creds/get-default))]
     {::http-client          (or http-client (default-http-client))
      ::api-descriptor       descriptor
      ::credentials-provider credentials-provider}))

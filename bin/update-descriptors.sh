@@ -22,7 +22,7 @@ if [[ $(git status --porcelain) ]]; then
   echo "Changes dectected. Updating descriptors..."
   git add -A .
   git commit -a -m "Update descriptor files"
-  git push -f -u origin ${branch}
+  git push -u origin ${branch}
 else
   echo "No changes to push."
 fi

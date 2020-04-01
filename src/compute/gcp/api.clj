@@ -5,6 +5,7 @@
     [compute.gcp.impl.descriptor :as descriptors]
     [compute.gcp.impl.client :as client-impl]
     [compute.gcp.credentials :as creds]
+    [compute.gcp.retry :as retry]
     [compute.gcp.async.api :as async.api]))
 
 (def ^:private *default-http-client
@@ -16,12 +17,14 @@
   @*default-http-client)
 
 (defn client
-  [{:keys [api version http-client credentials-provider]}]
+  [{:keys [api version http-client credentials-provider backoff retriable?]}]
   (let [descriptor (descriptors/load-descriptor api version)
         credentials-provider (or credentials-provider (creds/get-default))]
     {::http-client          (or http-client (default-http-client))
      ::api-descriptor       descriptor
-     ::credentials-provider credentials-provider}))
+     ::credentials-provider credentials-provider
+     ::backoff              (or backoff retry/default-backoff)
+     ::retriable?           (or retriable? retry/default-retriable?)}))
 
 
 ;; TODO

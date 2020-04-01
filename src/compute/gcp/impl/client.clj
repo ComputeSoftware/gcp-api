@@ -4,17 +4,28 @@
     [cognitect.anomalies :as anom]
     [compute.gcp.impl.request :as request]
     [compute.gcp.impl.response :as response]
-    [compute.gcp.protocols :as proto]))
+    [compute.gcp.protocols :as proto]
+    [compute.gcp.retry :as retry]))
+
+(defn send-request-async
+  [http-client request]
+  (let [out-ch (async/promise-chan)]
+    (proto/send-request
+      http-client
+      request
+      #(async/put! out-ch (response/normalize-response %)))
+    out-ch))
 
 (defn send-request!
   [client request]
   (let [out-ch (async/promise-chan)]
     (if (::anom/category request)
       (async/put! out-ch request)
-      (proto/send-request
-        (:compute.gcp.api/http-client client)
-        request
-        #(async/put! out-ch (response/normalize-response %))))
+      (retry/with-retry
+        #(send-request-async (:compute.gcp.api/http-client client) request)
+        out-ch
+        (:compute.gcp.api/retriable? client)
+        (:compute.gcp.api/backoff client)))
     out-ch))
 
 (defn invoke

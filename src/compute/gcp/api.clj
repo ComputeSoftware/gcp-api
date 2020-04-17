@@ -2,11 +2,12 @@
   (:require
     [clojure.string :as str]
     [clojure.core.async :as async]
-    [compute.gcp.impl.descriptor :as descriptors]
+    [compute.gcp.descriptor :as descriptors]
     [compute.gcp.impl.client :as client-impl]
     [compute.gcp.credentials :as creds]
     [compute.gcp.retry :as retry]
-    [compute.gcp.async.api :as async.api]))
+    [compute.gcp.async.api :as async.api]
+    [compute.gcp.descriptor :as descriptor]))
 
 (def ^:private *default-http-client
   (delay
@@ -60,14 +61,14 @@
 
 (defn doc-data
   [client op]
-  (let [op-descriptor (descriptors/get-op-descriptor (::api-descriptor client) op)]
+  (let [op-descriptor (descriptor/get-op-info (::api-descriptor client) op)]
     (-> op-descriptor
         (select-keys [:description :parameters :responses]))))
 
 
 (defn ops
   [client]
-  (keys (get-in client [::api-descriptor :compute.api-descriptor/op->spec])))
+  (keys (get-in client [::api-descriptor ::descriptor/op->info])))
 
 
 (defn invoke

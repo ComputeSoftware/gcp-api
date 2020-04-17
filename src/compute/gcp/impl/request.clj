@@ -4,7 +4,7 @@
     [clojure.data.json :as json]
     [clojure.spec.alpha :as s]
     [cognitect.anomalies :as anom]
-    [compute.gcp.impl.descriptor :as descriptor]
+    [compute.gcp.descriptor :as descriptor]
     [compute.gcp.credentials :as creds]))
 
 
@@ -52,64 +52,61 @@
 (defn with-request-parameters
   "Returns request with the op's op-parameters from request-parameters added
   into the appropriate locations in the request map."
-  [request parameters request-body request-parameters]
-  (let [;; TODO: handle multiple content-types?
-        body-keys (keys (get-in request-body [:content "application/json" :schema :properties]))
-        ;; TODO: handle parameters with the same name
-        name->param-info (into {}
-                               (map (fn [param-info]
-                                      [(keyword (:name param-info)) param-info]))
-                               parameters)
-        parameter-keys (keys name->param-info)]
+  [request parameters body-schema request-parameters]
+  (let [body-keys (map keyword (keys (get body-schema "properties")))
+        parameter-keys (map keyword (keys parameters))]
     (reduce-kv
       (fn [req-map param-name param-value]
-        (let [param-info (name->param-info param-name)
-              param-name (:name param-info)]
-          (case (:in param-info)
+        (let [param-name (name param-name)
+              param-schema (get parameters param-name)]
+          (case (param-schema "location")
             "query" (with-query-parameter req-map param-name param-value)
             "path" (with-path-parameter req-map param-name param-value)
             "header" (with-header-parameter req-map param-name param-value)
             "formData" (with-form-parameter req-map param-name param-value))))
       (cond-> request
         ;; TODO: Could remove duplicated req-param keys from the body here
-        body-keys (assoc :body (json/write-str (select-keys request-parameters body-keys))))
+        (not-empty body-keys)
+        (assoc :body (json/write-str (select-keys request-parameters body-keys))))
       (select-keys request-parameters parameter-keys))))
 
 (defn build-request-map
-  [endpoint op-descriptor op-map]
+  [endpoint op-info op-map]
   (let [{:keys [request timeout]} op-map
-        base-req (cond-> {:method (::descriptor/http-method op-descriptor)
+        base-req (cond-> {:method (::descriptor/http-method op-info)
                           :uri    (str (::descriptor/url endpoint)
-                                       (::descriptor/http-path op-descriptor))}
+                                       (::descriptor/path op-info))}
                    timeout (assoc :timeout timeout))]
     (with-request-parameters
       base-req
-      (:parameters op-descriptor)
-      (:requestBody op-descriptor)
+      (::descriptor/parameters op-info)
+      (::descriptor/request op-info)
       request)))
 
 (comment
+  (def descriptor (descriptor/load-descriptor "compute" "v1"))
+  (def op-info (get-in descriptor [::descriptor/op->info "compute.instances.list"]))
+  (::descriptor/parameters op-info)
+  (::descriptor/request op-info)
   (build-request-map
-    {:scheme    "https"
-     :host      "compute.googleapis.com"
-     :base-path "/compute/v1/projects"}
-    (get-op-descriptor compute-spec "compute.instances.list")
-    {:project    "myprj"
-     :zone       "zone1"
-     :maxResults 1
-     :pageToken  "asd"})
+    (::descriptor/endpoint descriptor)
+    op-info
+    {:request {:project    "myprj"
+               :zone       "zone1"
+               :maxResults 1
+               :pageToken  "asd"}})
   )
 
 (defn get-op-descriptor
   [client op]
-  (get-in client [:compute.gcp.api/api-descriptor :compute.api-descriptor/op->spec op]))
+  (descriptor/get-op-info (:compute.gcp.api/api-descriptor client) op))
 
 (defn op-request-map
   [client op-map]
   (if-let [op-descriptor (get-op-descriptor client (:op op-map))]
     (let [request (try
                     (build-request-map
-                      (get-in client [:compute.gcp.api/api-descriptor :compute.api-descriptor/endpoint])
+                      (get-in client [:compute.gcp.api/api-descriptor ::descriptor/endpoint])
                       op-descriptor
                       op-map)
                     (catch Exception ex

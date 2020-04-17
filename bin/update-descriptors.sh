@@ -14,7 +14,7 @@ git checkout -b ${branch}
 cd ..
 
 echo "Updating descriptor files..."
-clojure -A:dev -m update-api-descriptors $dir
+clojure -A:dev -m update-descriptors $dir
 
 cd $dir
 

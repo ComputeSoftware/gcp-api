@@ -23,13 +23,16 @@
 (defrecord HttpClient [http-client]
   proto/IHttpClient
   (send-request [_ req-map callback]
-    (http/send-async
-      req-map
-      {:client http-client
-       :as     :input-stream}
-      (fn [resp]
-        (callback resp))
-      (fn [ex]
+    (try
+      (http/send-async
+        req-map
+        {:client http-client
+         :as     :input-stream}
+        (fn [resp]
+          (callback resp))
+        (fn [ex]
+          (callback (exception-as-anomaly ex))))
+      (catch Throwable ex
         (callback (exception-as-anomaly ex))))
     nil))
 

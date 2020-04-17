@@ -1,23 +1,13 @@
 (ns playground
   (:require
-    [compute.gcp.api :as gcp-api]
-    [compute.gcp.credentials :as creds]
-    [compute.gcp.impl.request :as req]))
-
-(def creds
-  (creds/service-account-creds
-    {:file   "creds.json"
-     :scopes ["https://www.googleapis.com/auth/cloud-platform"]}))
+    [compute.gcp.api :as gcp-api]))
 
 (comment
-  (def client (gcp-api/client {:api                  :compute
-                               :version              "v1"
-                               :credentials-provider creds}))
+  (def client (gcp-api/client {:api     :compute
+                               :version "v1"}))
   (gcp-api/invoke
     client
     {:op      "compute.instances.list"
      :request {:project ""
                :zone    "us-central1-c"}})
-
-  (req/get-op-descriptor client "compute.instances.list")
   )

@@ -117,7 +117,12 @@
                        :op-map         op-map}))]
       (if (::anom/category request)
         request
-        (let [creds-map (creds/fetch (:compute.gcp.api/credentials-provider client))]
+        (let [creds-map (try
+                          (creds/fetch (:compute.gcp.api/credentials-provider client))
+                          (catch Throwable ex
+                            {::anom/category ::anom/fault
+                             ::anom/message  "Failed to fetch creds."
+                             :ex             ex}))]
           (if (::anom/category creds-map)
             creds-map
             (with-auth request (::creds/access-token creds-map))))))

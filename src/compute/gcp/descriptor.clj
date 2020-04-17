@@ -3,7 +3,6 @@
     [clojure.spec.alpha :as s]
     [clojure.java.io :as io]
     [clojure.edn :as edn]
-    [clojure.string :as str]
     [clojure.walk :as walk]))
 
 ;; TODO
@@ -15,10 +14,12 @@
 (s/def ::revision string?)
 
 (s/def ::url string?)
+(s/def ::service-path string?)
 (s/def ::batch-path string?)
 (s/def ::endpoint
   (s/keys :req [::url]
-          :opt [::batch-path]))
+          :opt [::batch-path
+                ::service-path]))
 
 
 ;; TODO:

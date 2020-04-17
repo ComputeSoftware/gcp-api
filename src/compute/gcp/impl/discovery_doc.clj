@@ -11,7 +11,7 @@
   (def discovery-doc
     (update-descriptors/get-json "https://www.googleapis.com/discovery/v1/apis/compute/v1/rest"))
   (keys discovery-doc)
-  (discovery-doc "discoveryVersion")
+  (discovery-doc "servicePath")
   (discovery-doc "rootUrl")
   (discovery-doc "servicePath")
   (type (discovery-doc "resources"))
@@ -55,8 +55,10 @@
    ::descriptor/title       (discovery-doc "title")
    ::descriptor/api-version (discovery-doc "version")
    ::descriptor/revision    (discovery-doc "revision")
-   ::descriptor/endpoint    {::descriptor/url        (discovery-doc "rootUrl")
-                             ::descriptor/batch-path (discovery-doc "batchPath")}
+   ::descriptor/endpoint    (cond-> {::descriptor/url        (discovery-doc "rootUrl")
+                                     ::descriptor/batch-path (discovery-doc "batchPath")}
+                              (discovery-doc "servicePath")
+                              (assoc ::descriptor/service-path (discovery-doc "servicePath")))
    ::descriptor/parameters  (discovery-doc "parameters")
    ::descriptor/op->info    (resources->op-lookup (discovery-doc "resources"))
    ::descriptor/schemas     (discovery-doc "schemas")})

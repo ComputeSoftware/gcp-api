@@ -13,7 +13,7 @@
     (proto/send-request
       http-client
       request
-      #(async/put! out-ch (response/normalize-response %)))
+      #(async/put! out-ch (response/normalize-response request %)))
     out-ch))
 
 (defn send-request!

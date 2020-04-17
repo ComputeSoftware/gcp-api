@@ -75,6 +75,7 @@
   (let [{:keys [request timeout]} op-map
         base-req (cond-> {:method (::descriptor/http-method op-info)
                           :uri    (str (::descriptor/url endpoint)
+                                       (::descriptor/service-path endpoint)
                                        (::descriptor/path op-info))}
                    timeout (assoc :timeout timeout))]
     (with-request-parameters

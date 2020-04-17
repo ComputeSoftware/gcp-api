@@ -53,27 +53,41 @@
        :explain-data                 (s/explain-data ::descriptor/descriptor descriptor)})))
 
 (defn update!
-  [downloads]
-  (let [{failed-download-anoms true
-         downloads             false} (group-by (comp boolean :cognitect.anomalies/category)
-                                                downloads)
-        converted (map convert-one-download downloads)
-        {convert-anoms true
-         successes     false} (group-by (comp boolean :cognitect.anomalies/category)
-                                        converted)
-        anoms (concat failed-download-anoms convert-anoms)]
+  ([downloads] (update! downloads "gcp-api-descriptors"))
+  ([downloads base-dir]
+   (let [{failed-download-anoms true
+          downloads             false} (group-by (comp boolean :cognitect.anomalies/category)
+                                                 downloads)
+         converted (map convert-one-download downloads)
+         {convert-anoms true
+          successes     false} (group-by (comp boolean :cognitect.anomalies/category)
+                                         converted)
+         anoms (concat failed-download-anoms convert-anoms)]
 
-    ;; Print anomalies
-    (doseq [[anom-category anoms] (group-by :cognitect.anomalies/category anoms)]
-      (println (format "[Warning] %s Swagger files failed with anomaly %s: %s"
-                       (count anoms)
-                       (name anom-category)
-                       (str/join ", " (map :id anoms)))))
+     ;; Print anomalies
+     (doseq [[anom-category anoms] (group-by :cognitect.anomalies/category anoms)]
+       (println (format "[Warning] %s Swagger files failed with anomaly %s: %s"
+                        (count anoms)
+                        (name anom-category)
+                        (str/join ", " (map :id anoms)))))
 
-    (doseq [{::keys [descriptor]} successes
-            :let [{:keys [::descriptor/name ::descriptor/api-version]} descriptor
-                  path (descriptor/api-descriptor-resource-path name api-version)]]
-      (spit-with-dirs (str "gcp-api-descriptors/" path) descriptor))))
+     (let [successes (map (fn [{::keys [descriptor] :as m}]
+                            (assoc m
+                              ::lib-dir (io/file
+                                          (::descriptor/name descriptor)
+                                          (::descriptor/api-version descriptor))))
+                          successes)
+           all-deps-edn-content {:paths (mapv (comp (memfn getPath) ::lib-dir) successes)}]
+       (spit-with-dirs
+         (io/file base-dir "deps.edn")
+         (pr-str all-deps-edn-content))
+
+       (doseq [{::keys [descriptor lib-dir]} successes
+               :let [{:keys [::descriptor/name ::descriptor/api-version]} descriptor
+                     deps-edn-path (io/file lib-dir "deps.edn")
+                     descriptor-path (io/file lib-dir (descriptor/api-descriptor-resource-path name api-version))]]
+         (spit-with-dirs (io/file base-dir descriptor-path) descriptor)
+         (spit-with-dirs (io/file base-dir deps-edn-path) (pr-str {:paths ["."]})))))))
 
 (comment
   (def discovery-docs-list (list-discovery-docs))
@@ -88,6 +102,6 @@
         _ (println (str "Updating descriptor files in " descriptors-dir "..."))
         discovery-docs-list (list-discovery-docs)
         downloads (download-all-discovery-docs discovery-docs-list)]
-    (update! downloads)
+    (update! downloads descriptors-dir)
     (println "Success!")
     (shutdown-agents)))

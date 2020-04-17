@@ -11,6 +11,7 @@ echo "Cloning gcp-api-descriptors branch:${branch}"
 git clone git@github.com:ComputeSoftware/gcp-api-descriptors.git $dir
 cd $dir
 git checkout -b ${branch}
+git pull origin ${branch}
 cd ..
 
 echo "Updating descriptor files..."

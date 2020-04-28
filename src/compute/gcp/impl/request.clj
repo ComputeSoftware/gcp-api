@@ -5,7 +5,8 @@
     [clojure.spec.alpha :as s]
     [cognitect.anomalies :as anom]
     [compute.gcp.descriptor :as descriptor]
-    [compute.gcp.credentials :as creds]))
+    [compute.gcp.credentials :as creds])
+  (:import (com.google.api.client.http UriTemplate)))
 
 
 (def curly-brackets-regex #"\{(.*?)\}")
@@ -48,27 +49,43 @@
   [request access-token]
   (assoc-in request [:headers "Authorization"] (str "Bearer " access-token)))
 
+(defn expand-uri-template
+  [uri-template param-name->param-val]
+  (UriTemplate/expand "" uri-template param-name->param-val false))
 
 (defn with-request-parameters
   "Returns request with the op's op-parameters from request-parameters added
   into the appropriate locations in the request map."
-  [request parameters body-schema request-parameters]
+  [request parameters body-schema parameter-kvs]
   (let [body-keys (map keyword (keys (get body-schema "properties")))
-        parameter-keys (map keyword (keys parameters))]
+        path-params (into {}
+                          (keep (fn [[k v]]
+                                  (when (= "path" (get-in parameters [(name k) "location"]))
+                                    [(name k) v])))
+                          parameter-kvs)
+        query-header-form-data-params
+        (into []
+              (comp
+                (map keyword)
+                (filter (fn [k]
+                          (not (path-params (name k))))))
+              (keys parameters))]
     (reduce-kv
       (fn [req-map param-name param-value]
         (let [param-name (name param-name)
               param-schema (get parameters param-name)]
           (case (param-schema "location")
             "query" (with-query-parameter req-map param-name param-value)
-            "path" (with-path-parameter req-map param-name param-value)
             "header" (with-header-parameter req-map param-name param-value)
             "formData" (with-form-parameter req-map param-name param-value))))
       (cond-> request
+        true
+        (update :uri (fn [uri-template]
+                       (expand-uri-template uri-template path-params)))
         ;; TODO: Could remove duplicated req-param keys from the body here
         (not-empty body-keys)
-        (assoc :body (json/write-str (select-keys request-parameters body-keys))))
-      (select-keys request-parameters parameter-keys))))
+        (assoc :body (json/write-str (select-keys parameter-kvs body-keys))))
+      (select-keys parameter-kvs query-header-form-data-params))))
 
 (defn build-request-map
   [endpoint op-info op-map]

@@ -95,6 +95,39 @@
   (update! downloads)
   )
 
+(comment
+  (def discovery-docs (map ::discovery-doc downloads))
+
+  (into []
+        (comp
+          (filter (fn [doc]
+                    (not-empty (get doc "servicePath"))))
+          (map (fn [doc]
+                 (select-keys doc ["servicePath" "name"]))))
+        discovery-docs)
+
+  ;; all paths
+  (for [doc discovery-docs
+        method (discovery-doc/collect-all-resource-methods (get doc "resources"))]
+    [(get doc "name") (get method "path")])
+
+  ;; services without flatPath
+  (for [doc discovery-docs
+        method (discovery-doc/collect-all-resource-methods (get doc "resources"))
+        :when (empty? (get method "flatPath"))]
+    [(get doc "name") (get method "id")])
+
+  ;; freqs of flatPath and path
+  (frequencies
+    (for [doc discovery-docs
+          method (discovery-doc/collect-all-resource-methods (get doc "resources"))]
+      (let [v-or-nil #(when-let [x (not-empty %)] x)
+            flat-path (v-or-nil (get method "flatPath"))
+            path (v-or-nil (get method "path"))]
+        [(boolean flat-path)
+         (boolean path)])))
+  )
+
 (defn -main
   [& args]
   (let [descriptors-dir (first args)

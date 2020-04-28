@@ -21,10 +21,9 @@
   (discovery-doc "parameters")
   "compute.zoneOperations.delete"
 
-  (for [[_ {:strs [methods]}] (discovery-doc "resources")
-        [_ method] methods
-        :when (= (method "id") "compute.instances.insert")]
-    method)
+  (filter (fn [method]
+            (= (method "id") "cloudbilling.services.skus.list"))
+          (collect-all-resource-methods (discovery-doc "resources")))
   )
 
 (defn collect-all-resource-methods
@@ -41,8 +40,7 @@
         (map (fn [method]
                [(method "id")
                 (cond-> {::descriptor/http-method (keyword (str/lower-case (method "httpMethod")))
-                         ::descriptor/path        (or (method "flatPath")
-                                                      (method "path"))}
+                         ::descriptor/path        (method "path")}
                   (method "request")
                   (assoc ::descriptor/request (method "request"))
                   (method "response")

@@ -90,11 +90,14 @@
 
 (defn read-descriptor
   [api api-version]
-  (with-open [rdr (-> (api-descriptor-resource-path api api-version)
-                      (io/resource)
-                      (io/reader))
-              push-rdr (java.io.PushbackReader. rdr)]
-    (edn/read push-rdr)))
+  (if-let [descriptor-resource (io/resource (api-descriptor-resource-path api api-version))]
+    (with-open [rdr (io/reader descriptor-resource)
+                push-rdr (java.io.PushbackReader. rdr)]
+      (edn/read push-rdr))
+    (throw (ex-info (format "Cannot find API descriptor file for %s %s"
+                            (pr-str api) (pr-str api-version))
+                    {:api         api
+                     :api-version api-version}))))
 
 (comment
   (def descriptor (read-descriptor "compute" "v1"))

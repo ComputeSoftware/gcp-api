@@ -19,7 +19,8 @@
   (gcp-api/invoke
     client
     {:op      "cloudbilling.services.skus.list"
-     :request {:parent "services/9662-B51E-5089"}})
+     :request {:parent "services/9662-B51E-5089"}
+     :as      :input-stream})
 
   (request/op-request-map
     client

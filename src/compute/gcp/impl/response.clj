@@ -40,21 +40,30 @@
     :else nil))
 
 (defn normalize-response
-  [request {:keys [status body headers] :as response}]
-  (with-meta
-    (if (::anom/category response)
-      response
-      (let [status-level (int (/ status 100))
-            content-type (parse-content-type (get headers "content-type" ""))
-            parsed-body (case content-type
-                          :json (json/read (io/reader body) :key-fn util/json-key)
-                          (slurp body))]
-        (if (= status-level 2)
-          parsed-body
-          (merge {::anom/category (http-status->category status)}
-                 (if (map? parsed-body)
-                   parsed-body
-                   {:response parsed-body})))))
-    {:request  request
-     :response response}))
+  [{:keys [as]
+    :as   request}
+   {:keys [status body headers] :as response}]
+  (let [resp (if (::anom/category response)
+               response
+               (let [status-level (int (/ status 100))
+                     content-type (parse-content-type (get headers "content-type" ""))
+                     out-body (cond
+                                (#{:json nil} as)
+                                (case content-type
+                                  :json (json/read (io/reader body) :key-fn util/json-key)
+                                  (slurp body))
+                                (= :string as) (slurp body)
+                                (= :input-stream as)
+                                {:input-stream body}
+                                :else (throw (ex-info (format "Unsupported response :as %s" as)
+                                                      {:as as})))]
+                 (if (= status-level 2)
+                   out-body
+                   (merge {::anom/category (http-status->category status)
+                           :response       out-body}))))]
+    (vary-meta
+      resp
+      merge
+      {:request  request
+       :response response})))
 

@@ -89,12 +89,13 @@
 
 (defn build-request-map
   [endpoint op-info op-map]
-  (let [{:keys [request timeout]} op-map
+  (let [{:keys [request timeout as]} op-map
         base-req (cond-> {:method (::descriptor/http-method op-info)
                           :uri    (str (::descriptor/url endpoint)
                                        (::descriptor/service-path endpoint)
                                        (::descriptor/path op-info))}
-                   timeout (assoc :timeout timeout))]
+                   timeout (assoc :timeout timeout)
+                   as (assoc :as as))]
     (with-request-parameters
       base-req
       (::descriptor/parameters op-info)

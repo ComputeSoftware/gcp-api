@@ -11,6 +11,7 @@
   (def discovery-doc
     (update-descriptors/get-json "https://www.googleapis.com/discovery/v1/apis/compute/v1/rest"))
   (keys discovery-doc)
+  (dissoc discovery-doc "schemas" "parameters")
   (discovery-doc "servicePath")
   (discovery-doc "rootUrl")
   (discovery-doc "servicePath")
@@ -26,23 +27,31 @@
     method)
   )
 
+(defn collect-all-resource-methods
+  [resources]
+  (mapcat (fn [[_ map-or-resource]]
+            (if (get map-or-resource "id")
+              [map-or-resource]
+              (collect-all-resource-methods map-or-resource)))
+          resources))
+
 (defn resources->op-lookup
   [resources]
   (into {}
-        (for [[_ {:strs [methods]}] resources
-              [_ method] methods]
-          [(method "id")
-           (cond-> {::descriptor/http-method (keyword (str/lower-case (method "httpMethod")))
-                    ::descriptor/path        (or (method "flatPath")
-                                                 (method "path"))}
-             (method "request")
-             (assoc ::descriptor/request (method "request"))
-             (method "response")
-             (assoc ::descriptor/response (method "response"))
-             (method "parameters")
-             (assoc ::descriptor/parameters (method "parameters"))
-             (method "description")
-             (assoc ::descriptor/description (method "description")))])))
+        (map (fn [method]
+               [(method "id")
+                (cond-> {::descriptor/http-method (keyword (str/lower-case (method "httpMethod")))
+                         ::descriptor/path        (or (method "flatPath")
+                                                      (method "path"))}
+                  (method "request")
+                  (assoc ::descriptor/request (method "request"))
+                  (method "response")
+                  (assoc ::descriptor/response (method "response"))
+                  (method "parameters")
+                  (assoc ::descriptor/parameters (method "parameters"))
+                  (method "description")
+                  (assoc ::descriptor/description (method "description")))]))
+        (collect-all-resource-methods resources)))
 
 (comment
   (get (resources->op-lookup (discovery-doc "resources")) "compute.instances.insert")

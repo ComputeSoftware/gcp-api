@@ -48,7 +48,7 @@
                (let [status-level (int (/ status 100))
                      content-type (parse-content-type (get headers "content-type" ""))
                      out-body (cond
-                                (#{:json nil} as)
+                                (contains? #{:json nil} as)
                                 (case content-type
                                   :json (json/read (io/reader body) :key-fn util/json-key)
                                   (slurp body))

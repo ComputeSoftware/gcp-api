@@ -1,10 +1,30 @@
 (ns compute.gcp.java-http-clj
   (:require
+    [clojure.string :as str]
     [cognitect.anomalies :as anom]
     [java-http-clj.core :as http]
     [compute.gcp.protocols :as proto])
   (:import (java.net.http HttpConnectTimeoutException HttpTimeoutException)
-           (java.time Duration)))
+           (java.time Duration)
+           (java.net URLEncoder)))
+
+(defn url-encode
+  "Percent encode the string to put in a URL."
+  [^String s]
+  (-> s
+      (URLEncoder/encode "UTF-8")
+      (.replace "+" "%20")))
+
+(defn query-string
+  "Create a query string from a list of parameters. Values must all be
+  strings."
+  [params]
+  (when-not (empty? params)
+    (str/join "&" (map (fn [[k v]]
+                         (str (url-encode (name k))
+                              "="
+                              (url-encode v)))
+                       params))))
 
 (defn exception-as-anomaly
   [ex]
@@ -20,12 +40,19 @@
        ::anom/message  (.getMessage ex)})
     {:ex ex}))
 
+(defn normalize-request
+  [request]
+  (cond-> request
+    (:query-params request)
+    (update :uri (fn [uri]
+                   (str uri "?" (query-string (:query-params request)))))))
+
 (defrecord HttpClient [http-client]
   proto/IHttpClient
   (send-request [_ req-map callback]
     (try
       (http/send-async
-        req-map
+        (normalize-request req-map)
         {:client http-client
          :as     :input-stream}
         (fn [resp]

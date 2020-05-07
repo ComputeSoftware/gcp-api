@@ -16,15 +16,18 @@
       (.replace "+" "%20")))
 
 (defn query-string
-  "Create a query string from a list of parameters. Values must all be
-  strings."
+  "Create a query string from a list of parameters. Param values can be a string
+  or a vector of strings."
   [params]
   (when-not (empty? params)
-    (str/join "&" (map (fn [[k v]]
-                         (str (url-encode (name k))
-                              "="
-                              (url-encode v)))
-                       params))))
+    (str/join
+      "&"
+      (for [[k v-or-vs] params
+            :let [vs (if (coll? v-or-vs) v-or-vs [v-or-vs])]
+            v vs]
+        (str (url-encode (name k))
+             "="
+             (url-encode v))))))
 
 (defn exception-as-anomaly
   [ex]

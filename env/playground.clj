@@ -20,7 +20,7 @@
     (gcp-api/invoke
       client
       {:op      "cloudbilling.services.skus.list"
-       :request {:pageSize 1000
+       :request {:pageSize (str 1000)
                  :parent   "services/9662-B51E-5089"}}))
   (meta r)
   (count (:skus r))

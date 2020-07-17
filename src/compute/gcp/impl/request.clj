@@ -121,11 +121,11 @@
   (descriptor/get-op-info (:compute.gcp.api/api-descriptor client) op))
 
 (defn op-request-map
-  [client op-map]
-  (if-let [op-descriptor (get-op-descriptor client (:op op-map))]
+  [cinfo op-map]
+  (if-let [op-descriptor (get-op-descriptor cinfo (:op op-map))]
     (let [request (try
                     (build-request-map
-                      (get-in client [:compute.gcp.api/api-descriptor ::descriptor/endpoint])
+                      (get-in cinfo [:compute.gcp.api/api-descriptor ::descriptor/endpoint])
                       op-descriptor
                       op-map)
                     (catch Exception ex
@@ -136,7 +136,7 @@
       (if (::anom/category request)
         request
         (let [creds-map (try
-                          (creds/fetch (:compute.gcp.api/credentials-provider client))
+                          (creds/fetch (:compute.gcp.api/credentials-provider cinfo))
                           (catch Throwable ex
                             {::anom/category ::anom/fault
                              ::anom/message  "Failed to fetch creds."
@@ -149,8 +149,8 @@
      :op             (:op op-map)}))
 
 (defn url-request-map
-  [client url]
-  (let [creds-map (creds/fetch (:compute.gcp.api/credentials-provider client))
+  [cinfo url]
+  (let [creds-map (creds/fetch (:compute.gcp.api/credentials-provider cinfo))
         request {:method :get
                  :uri    url}]
     (if (::anom/category creds-map)

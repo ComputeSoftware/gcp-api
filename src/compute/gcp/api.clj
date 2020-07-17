@@ -21,11 +21,12 @@
   [{:keys [api version http-client credentials-provider backoff retriable?]}]
   (let [descriptor (descriptors/load-descriptor api version)
         credentials-provider (or credentials-provider (creds/get-default))]
-    {::http-client          (or http-client (default-http-client))
-     ::api-descriptor       descriptor
-     ::credentials-provider credentials-provider
-     ::backoff              (or backoff retry/default-backoff)
-     ::retriable?           (or retriable? retry/default-retriable?)}))
+    (client-impl/->Client
+      {::http-client          (or http-client (default-http-client))
+       ::api-descriptor       descriptor
+       ::credentials-provider credentials-provider
+       ::backoff              (or backoff retry/default-backoff)
+       ::retriable?           (or retriable? retry/default-retriable?)})))
 
 
 ;; TODO

@@ -2,11 +2,12 @@
   (:require
     [clojure.string :as str]
     [clojure.core.async :as async]
-    [compute.gcp.impl.descriptor :as descriptors]
+    [compute.gcp.descriptor :as descriptors]
     [compute.gcp.impl.client :as client-impl]
     [compute.gcp.credentials :as creds]
     [compute.gcp.retry :as retry]
-    [compute.gcp.async.api :as async.api]))
+    [compute.gcp.async.api :as async.api]
+    [compute.gcp.descriptor :as descriptor]))
 
 (def ^:private *default-http-client
   (delay
@@ -20,11 +21,12 @@
   [{:keys [api version http-client credentials-provider backoff retriable?]}]
   (let [descriptor (descriptors/load-descriptor api version)
         credentials-provider (or credentials-provider (creds/get-default))]
-    {::http-client          (or http-client (default-http-client))
-     ::api-descriptor       descriptor
-     ::credentials-provider credentials-provider
-     ::backoff              (or backoff retry/default-backoff)
-     ::retriable?           (or retriable? retry/default-retriable?)}))
+    (client-impl/->Client
+      {::http-client          (or http-client (default-http-client))
+       ::api-descriptor       descriptor
+       ::credentials-provider credentials-provider
+       ::backoff              (or backoff retry/default-backoff)
+       ::retriable?           (or retriable? retry/default-retriable?)})))
 
 
 ;; TODO
@@ -60,14 +62,14 @@
 
 (defn doc-data
   [client op]
-  (let [op-descriptor (descriptors/get-op-descriptor (::api-descriptor client) op)]
+  (let [op-descriptor (descriptor/get-op-info (::api-descriptor client) op)]
     (-> op-descriptor
         (select-keys [:description :parameters :responses]))))
 
 
 (defn ops
   [client]
-  (keys (get-in client [::api-descriptor :compute.api-descriptor/op->spec])))
+  (keys (get-in client [::api-descriptor ::descriptor/op->info])))
 
 
 (defn invoke

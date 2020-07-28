@@ -1,4 +1,4 @@
-(ns compute.gcp.impl.descriptor
+(ns compute.gcp.impl.openapi
   (:require
     [clojure.string :as str]
     [clojure.edn :as edn]

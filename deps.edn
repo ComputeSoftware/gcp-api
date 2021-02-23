@@ -11,7 +11,7 @@
            :test-runner {:extra-deps {lambdaisland/kaocha {:mvn/version "1.0.672"}}
                          :main-opts  ["-m" "kaocha.runner"]}
            :dev         {:extra-paths ["resources" "env" "gcp-api-descriptors"]
-                         :extra-deps  {com.climate/claypoole {:mvn/version "1.1.4"}
-                                       gcp-api/descriptors   {:local/root "gcp-api-descriptors"}}}
+                         :extra-deps  {com.climate/claypoole {:mvn/version "1.1.4"}}}
+           :descriptors {:extra-deps {gcp-api/descriptors {:local/root "gcp-api-descriptors"}}}
            :jar         {:extra-deps {seancorfield/depstar {:mvn/version "1.1.104"}}
                          :main-opts  ["-m" "hf.depstar.jar" "lib.jar"]}}}

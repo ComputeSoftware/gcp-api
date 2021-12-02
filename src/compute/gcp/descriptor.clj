@@ -72,13 +72,22 @@
           api-version))
 
 (defn resolve-all-refs
-  [lookup-map resolve-ref]
-  (walk/prewalk
-    (fn [form]
-      (if-let [ref-val (get form "$ref")]
-        (resolve-ref ref-val)
-        form))
-    lookup-map))
+  ([lookup-map resolve-ref] (resolve-all-refs lookup-map resolve-ref []))
+  ([lookup-map resolve-ref path]
+   (cond
+     (map? lookup-map) (if-let [ref-val (get lookup-map "$ref")]
+                         (if (some #{ref-val} path)
+                           (assoc lookup-map ::recursive? true)
+                           (resolve-all-refs (resolve-ref ref-val) resolve-ref (conj path ref-val)))
+                         (into {}
+                           (map (fn [[k v]]
+                                  [k (resolve-all-refs v resolve-ref path)]))
+                           lookup-map))
+     (coll? lookup-map) (mapv (fn [x]
+                                (resolve-all-refs x resolve-ref path))
+
+                          lookup-map)
+     :else lookup-map)))
 
 (defn resolve-descriptor-refs
   [descriptor]
@@ -103,8 +112,8 @@
   (def descriptor (read-descriptor "compute" "v1"))
   (keys descriptor)
   (first (::schemas descriptor))
-  (count (filter (fn [[k v]] (get v "$ref")) (::schemas descriptor)))
-  )
+  (count (filter (fn [[k v]] (get v "$ref")) (::schemas descriptor))))
+
 
 (defn load-descriptor
   [api api-version]
@@ -113,8 +122,8 @@
 (comment
   (def loaded-descriptor (load-descriptor "compute" "v1"))
   (keys (::op->info loaded-descriptor))
-  (get-in loaded-descriptor [::op->info "compute.instances.insert"])
-  )
+  (get-in loaded-descriptor [::op->info "compute.instances.insert"]))
+
 
 (defn get-op-info
   [descriptor op]

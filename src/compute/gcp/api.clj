@@ -1,13 +1,12 @@
 (ns compute.gcp.api
   (:require
-    [clojure.string :as str]
     [clojure.core.async :as async]
-    [compute.gcp.descriptor :as descriptors]
-    [compute.gcp.impl.client :as client-impl]
-    [compute.gcp.credentials :as creds]
-    [compute.gcp.retry :as retry]
+    [clojure.string :as str]
     [compute.gcp.async.api :as async.api]
-    [compute.gcp.descriptor :as descriptor]))
+    [compute.gcp.credentials :as creds]
+    [compute.gcp.descriptor :as descriptor]
+    [compute.gcp.impl.client :as client-impl]
+    [compute.gcp.retry :as retry]))
 
 (def ^:private *default-http-client
   (delay
@@ -19,7 +18,7 @@
 
 (defn client
   [{:keys [api version http-client credentials-provider backoff retriable?]}]
-  (let [descriptor (descriptors/load-descriptor api version)
+  (let [descriptor (descriptor/load-descriptor api version)
         credentials-provider (or credentials-provider (creds/get-default))]
     (client-impl/->Client
       {::http-client          (or http-client (default-http-client))
@@ -31,45 +30,51 @@
 
 ;; TODO
 (defn doc-str
-  [{:keys [documentation request required response refs] :as doc}]
-  (when doc
-    (str/join "\n"
-              (cond-> ["-------------------------"
-                       (:name doc)
-                       ""
-                       documentation]
-                request
-                (into [""
-                       "-------------------------"
-                       "Request"
-                       ""
-                       (with-out-str (clojure.pprint/pprint request))])
-                required
-                (into ["Required"
-                       ""
-                       (with-out-str (clojure.pprint/pprint required))])
-                response
-                (into ["-------------------------"
-                       "Response"
-                       ""
-                       (with-out-str (clojure.pprint/pprint response))])
-                refs
-                (into ["-------------------------"
-                       "Given"
-                       ""
-                       (with-out-str (clojure.pprint/pprint refs))])))))
+  [{::descriptor/keys [operation description parameters response] :as doc}]
+  (let [required (keep (fn [[parameter {:strs [required]}]]
+                         (when required
+                           (keyword parameter)))
+                   parameters)]
+    (when doc
+      (str/join "\n"
+        (cond-> ["-------------------------"
+                 operation
+                 ""
+                 description]
+          parameters
+          (into [""
+                 "-------------------------"
+                 "Request"
+                 ""
+                 (with-out-str (clojure.pprint/pprint parameters))])
+          required
+          (into ["Required"
+                 ""
+                 (with-out-str (clojure.pprint/pprint required))])
+          response
+          (into ["-------------------------"
+                 "Response"
+                 ""
+                 (with-out-str (clojure.pprint/pprint response))]))))))
 
 
 (defn doc-data
   [client op]
   (let [op-descriptor (descriptor/get-op-info (::api-descriptor client) op)]
     (-> op-descriptor
-        (select-keys [:description :parameters :responses]))))
-
+      (select-keys [:description :parameters :responses]))))
 
 (defn ops
   [client]
-  (keys (get-in client [::api-descriptor ::descriptor/op->info])))
+  (::descriptor/op->info (::api-descriptor (client-impl/-get-info client))))
+
+(defn doc
+  [client operation]
+  (println (or (some-> client ops
+                 (get operation)
+                 (assoc :compute.gcp.descriptor/operation operation)
+                 doc-str)
+             (str "No docs for " (name operation)))))
 
 
 (defn invoke

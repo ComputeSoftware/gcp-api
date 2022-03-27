@@ -5,7 +5,7 @@
     [compute.gcp.descriptor :as descriptor]))
 
 (deftest api-descriptor-resource-path-test
-  (is (= "computesoftware/api-descriptors/compute/v1/api-descriptor.edn"
+  (is (= "computesoftware/api-descriptors/compute/v1/api-descriptor.edn.gz"
          (descriptor/api-descriptor-resource-path :compute "v1"))))
 
 

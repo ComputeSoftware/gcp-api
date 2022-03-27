@@ -1,9 +1,9 @@
 (ns compute.gcp.descriptor
   (:require
-    [clojure.spec.alpha :as s]
-    [clojure.java.io :as io]
     [clojure.edn :as edn]
-    [clojure.walk :as walk]))
+    [clojure.java.io :as io]
+    [clojure.spec.alpha :as s])
+  (:import (java.util.zip GZIPInputStream)))
 
 ;; TODO
 (s/def ::json-schema map?)
@@ -66,7 +66,7 @@
 
 (defn api-descriptor-resource-path
   [api api-version]
-  (format "%s/%s/%s/api-descriptor.edn"
+  (format "%s/%s/%s/api-descriptor.edn.gz"
           api-descriptor-resource-path-base-directory
           (name api)
           api-version))
@@ -100,7 +100,7 @@
 (defn read-descriptor
   [api api-version]
   (if-let [descriptor-resource (io/resource (api-descriptor-resource-path api api-version))]
-    (with-open [rdr (io/reader descriptor-resource)
+    (with-open [rdr (io/reader (GZIPInputStream. (io/input-stream descriptor-resource)))
                 push-rdr (java.io.PushbackReader. rdr)]
       (edn/read push-rdr))
     (throw (ex-info (format "Cannot find API descriptor file for %s %s"
